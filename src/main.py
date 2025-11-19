@@ -32,7 +32,7 @@ class TimeFrame(Enum):
     TIMEFRAME_MN1 = mt5.TIMEFRAME_MN1
 
 
-class OrderType(Enum):
+class OrderType(int, Enum):
     ORDER_TYPE_BUY = mt5.ORDER_TYPE_BUY
     ORDER_TYPE_SELL = mt5.ORDER_TYPE_SELL
     ORDER_TYPE_BUY_LIMIT = mt5.ORDER_TYPE_BUY_LIMIT
@@ -368,7 +368,15 @@ async def order_calc_profit(order_request: OrderRequest):
     description="Check funds sufficiency for performing a required trading operation",
 )
 async def order_check(order_request: OrderRequest):
-    result = mt5.order_check(order_request.model_dump())
+    request_dict = order_request.model_dump(exclude={"type"})
+    request_dict["type"] = order_request.type
+
+    if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
+        request_dict["action"] = mt5.TRADE_ACTION_DEAL
+    else:
+        request_dict["action"] = mt5.TRADE_ACTION_PENDING
+
+    result = mt5.order_check(request_dict)
     if result is None:
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success", "result": result._asdict()}
@@ -380,7 +388,15 @@ async def order_check(order_request: OrderRequest):
     description="Send a request to perform a trading operation",
 )
 async def order_send(order_request: OrderRequest):
-    result = mt5.order_send(order_request.model_dump())
+    request_dict = order_request.model_dump(exclude={"type"})
+    request_dict["type"] = order_request.type
+
+    if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
+        request_dict["action"] = mt5.TRADE_ACTION_DEAL
+    else:
+        request_dict["action"] = mt5.TRADE_ACTION_PENDING
+
+    result = mt5.order_send(request_dict)
     if result is None:
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success", "result": result._asdict()}
