@@ -64,14 +64,22 @@ class LoginRequest(BaseModel):
     server: str
 
 
-@app.post("/initialize")
+@app.post(
+    "/initialize",
+    summary="Initialize MetaTrader 5 connection",
+    description="Establish a connection with the MetaTrader 5 terminal",
+)
 async def initialize():
     if not mt5.initialize():
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success"}
 
 
-@app.post("/login")
+@app.post(
+    "/login",
+    summary="Login to a trading account",
+    description="Connect to a trading account using specified parameters",
+)
 async def login(login_request: LoginRequest):
     if not mt5.login(
         login_request.account,
@@ -82,23 +90,39 @@ async def login(login_request: LoginRequest):
     return {"status": "success"}
 
 
-@app.post("/shutdown")
+@app.post(
+    "/shutdown",
+    summary="Shutdown MetaTrader 5 connection",
+    description="Close the previously established connection to the MetaTrader 5 terminal",
+)
 async def shutdown():
     mt5.shutdown()
     return {"status": "success"}
 
 
-@app.get("/version")
+@app.get(
+    "/version",
+    summary="Get MetaTrader 5 terminal version",
+    description="Return the MetaTrader 5 terminal version",
+)
 async def version():
     return {"version": mt5.version()}
 
 
-@app.get("/last_error")
+@app.get(
+    "/last_error",
+    summary="Get the last error",
+    description="Return data on the last error",
+)
 async def last_error():
     return {"last_error": mt5.last_error()}
 
 
-@app.get("/account_info")
+@app.get(
+    "/account_info",
+    summary="Get account information",
+    description="Get info on the current trading account",
+)
 async def account_info():
     info = mt5.account_info()
     if info is None:
@@ -106,7 +130,11 @@ async def account_info():
     return {"status": "success", "info": info._asdict()}
 
 
-@app.get("/terminal_info")
+@app.get(
+    "/terminal_info",
+    summary="Get terminal information",
+    description="Get status and parameters of the connected MetaTrader 5 terminal",
+)
 async def terminal_info():
     info = mt5.terminal_info()
     if info is None:
@@ -114,12 +142,20 @@ async def terminal_info():
     return {"status": "success", "info": info._asdict()}
 
 
-@app.get("/symbols_total")
+@app.get(
+    "/symbols_total",
+    summary="Get total number of symbols",
+    description="Get the number of all financial instruments in the MetaTrader 5 terminal",
+)
 async def symbols_total():
     return {"total": mt5.symbols_total()}
 
 
-@app.get("/symbols_get")
+@app.get(
+    "/symbols_get",
+    summary="Get all financial instruments",
+    description="Get all financial instruments from the MetaTrader 5 terminal",
+)
 async def symbols_get(group: str = None):
     if group:
         symbols = mt5.symbols_get(group)
@@ -128,7 +164,11 @@ async def symbols_get(group: str = None):
     return {"symbols": [s._asdict() for s in symbols]}
 
 
-@app.get("/symbol_info/{symbol}")
+@app.get(
+    "/symbol_info/{symbol}",
+    summary="Get data on a specified financial instrument",
+    description="Get data on the specified financial instrument",
+)
 async def symbol_info(symbol: str):
     info = mt5.symbol_info(symbol)
     if info is None:
@@ -136,7 +176,11 @@ async def symbol_info(symbol: str):
     return {"status": "success", "info": info._asdict()}
 
 
-@app.get("/symbol_info_tick/{symbol}")
+@app.get(
+    "/symbol_info_tick/{symbol}",
+    summary="Get the last tick for a financial instrument",
+    description="Get the last tick for the specified financial instrument",
+)
 async def symbol_info_tick(symbol: str):
     tick = mt5.symbol_info_tick(symbol)
     if tick is None:
@@ -144,21 +188,33 @@ async def symbol_info_tick(symbol: str):
     return {"status": "success", "tick": tick._asdict()}
 
 
-@app.post("/symbol_select/{symbol}")
+@app.post(
+    "/symbol_select/{symbol}",
+    summary="Select or remove a symbol in MarketWatch",
+    description="Select a symbol in the MarketWatch window or remove a symbol from the window",
+)
 async def symbol_select(symbol: str, enable: bool):
     if not mt5.symbol_select(symbol, enable):
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success"}
 
 
-@app.post("/market_book_add/{symbol}")
+@app.post(
+    "/market_book_add/{symbol}",
+    summary="Subscribe to Market Depth change events",
+    description="Subscribes the MetaTrader 5 terminal to the Market Depth change events for a specified symbol",
+)
 async def market_book_add(symbol: str):
     if not mt5.market_book_add(symbol):
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success"}
 
 
-@app.get("/market_book_get/{symbol}")
+@app.get(
+    "/market_book_get/{symbol}",
+    summary="Get Market Depth entries for a symbol",
+    description="Returns a tuple from BookInfo featuring Market Depth entries for the specified symbol",
+)
 async def market_book_get(symbol: str):
     book = mt5.market_book_get(symbol)
     if book is None:
@@ -166,14 +222,22 @@ async def market_book_get(symbol: str):
     return {"status": "success", "book": book}
 
 
-@app.post("/market_book_release/{symbol}")
+@app.post(
+    "/market_book_release/{symbol}",
+    summary="Cancel Market Depth subscription",
+    description="Cancels subscription of the MetaTrader 5 terminal to the Market Depth change events for a specified symbol",
+)
 async def market_book_release(symbol: str):
     if not mt5.market_book_release(symbol):
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success"}
 
 
-@app.get("/copy_rates_from/{symbol}")
+@app.get(
+    "/copy_rates_from/{symbol}",
+    summary="Get bars from a specified date",
+    description="Get bars from the MetaTrader 5 terminal starting from the specified date",
+)
 async def copy_rates_from(
     symbol: str, timeframe: TimeFrame, date_from: datetime, count: int
 ):
@@ -183,7 +247,11 @@ async def copy_rates_from(
     return {"status": "success", "rates": rates}
 
 
-@app.get("/copy_rates_from_pos/{symbol}")
+@app.get(
+    "/copy_rates_from_pos/{symbol}",
+    summary="Get bars from a specified index",
+    description="Get bars from the MetaTrader 5 terminal starting from the specified index",
+)
 async def copy_rates_from_pos(
     symbol: str, timeframe: TimeFrame, start_pos: int, count: int
 ):
@@ -193,7 +261,11 @@ async def copy_rates_from_pos(
     return {"status": "success", "rates": rates}
 
 
-@app.get("/copy_rates_range/{symbol}")
+@app.get(
+    "/copy_rates_range/{symbol}",
+    summary="Get bars in a specified date range",
+    description="Get bars in the specified date range from the MetaTrader 5 terminal",
+)
 async def copy_rates_range(
     symbol: str, timeframe: TimeFrame, date_from: datetime, date_to: datetime
 ):
@@ -203,7 +275,11 @@ async def copy_rates_range(
     return {"status": "success", "rates": rates}
 
 
-@app.get("/copy_ticks_from/{symbol}")
+@app.get(
+    "/copy_ticks_from/{symbol}",
+    summary="Get ticks from a specified date",
+    description="Get ticks from the MetaTrader 5 terminal starting from the specified date",
+)
 async def copy_ticks_from(symbol: str, date_from: datetime, count: int, flags: int):
     ticks = mt5.copy_ticks_from(symbol, date_from, count, flags)
     if ticks is None:
@@ -211,7 +287,11 @@ async def copy_ticks_from(symbol: str, date_from: datetime, count: int, flags: i
     return {"status": "success", "ticks": ticks}
 
 
-@app.get("/copy_ticks_range/{symbol}")
+@app.get(
+    "/copy_ticks_range/{symbol}",
+    summary="Get ticks for a specified date range",
+    description="Get ticks for the specified date range from the MetaTrader 5 terminal",
+)
 async def copy_ticks_range(
     symbol: str, date_from: datetime, date_to: datetime, flags: int
 ):
@@ -221,12 +301,20 @@ async def copy_ticks_range(
     return {"status": "success", "ticks": ticks}
 
 
-@app.get("/orders_total")
+@app.get(
+    "/orders_total",
+    summary="Get the number of active orders",
+    description="Get the number of active orders",
+)
 async def orders_total():
     return {"total": mt5.orders_total()}
 
 
-@app.get("/orders_get")
+@app.get(
+    "/orders_get",
+    summary="Get active orders",
+    description="Get active orders with the ability to filter by symbol or ticket",
+)
 async def orders_get(symbol: str = None, ticket: int = None):
     if symbol:
         orders = mt5.orders_get(symbol=symbol)
@@ -239,7 +327,11 @@ async def orders_get(symbol: str = None, ticket: int = None):
     return {"status": "success", "orders": [o._asdict() for o in orders]}
 
 
-@app.post("/order_calc_margin")
+@app.post(
+    "/order_calc_margin",
+    summary="Calculate margin for a trading operation",
+    description="Return margin in the account currency to perform a specified trading operation",
+)
 async def order_calc_margin(order_request: OrderRequest):
     margin = mt5.order_calc_margin(
         order_request.type.value,
@@ -252,7 +344,11 @@ async def order_calc_margin(order_request: OrderRequest):
     return {"status": "success", "margin": margin}
 
 
-@app.post("/order_calc_profit")
+@app.post(
+    "/order_calc_profit",
+    summary="Calculate profit for a trading operation",
+    description="Return profit in the account currency for a specified trading operation",
+)
 async def order_calc_profit(order_request: OrderRequest):
     profit = mt5.order_calc_profit(
         order_request.type.value,
@@ -266,7 +362,11 @@ async def order_calc_profit(order_request: OrderRequest):
     return {"status": "success", "profit": profit}
 
 
-@app.post("/order_check")
+@app.post(
+    "/order_check",
+    summary="Check funds sufficiency for a trading operation",
+    description="Check funds sufficiency for performing a required trading operation",
+)
 async def order_check(order_request: OrderRequest):
     result = mt5.order_check(order_request.dict())
     if result is None:
@@ -274,7 +374,11 @@ async def order_check(order_request: OrderRequest):
     return {"status": "success", "result": result._asdict()}
 
 
-@app.post("/order_send")
+@app.post(
+    "/order_send",
+    summary="Send a request to perform a trading operation",
+    description="Send a request to perform a trading operation",
+)
 async def order_send(order_request: OrderRequest):
     result = mt5.order_send(order_request.dict())
     if result is None:
@@ -282,12 +386,20 @@ async def order_send(order_request: OrderRequest):
     return {"status": "success", "result": result._asdict()}
 
 
-@app.get("/positions_total")
+@app.get(
+    "/positions_total",
+    summary="Get the number of open positions",
+    description="Get the number of open positions",
+)
 async def positions_total():
     return {"total": mt5.positions_total()}
 
 
-@app.get("/positions_get")
+@app.get(
+    "/positions_get",
+    summary="Get open positions",
+    description="Get open positions with the ability to filter by symbol or ticket",
+)
 async def positions_get(symbol: str = None, ticket: int = None):
     if symbol:
         positions = mt5.positions_get(symbol=symbol)
@@ -300,13 +412,21 @@ async def positions_get(symbol: str = None, ticket: int = None):
     return {"status": "success", "positions": [p._asdict() for p in positions]}
 
 
-@app.get("/history_orders_total")
+@app.get(
+    "/history_orders_total",
+    summary="Get the number of orders in trading history",
+    description="Get the number of orders in trading history within the specified interval",
+)
 async def history_orders_total(date_from: datetime, date_to: datetime):
     total = mt5.history_orders_total(date_from, date_to)
     return {"total": total}
 
 
-@app.get("/history_orders_get")
+@app.get(
+    "/history_orders_get",
+    summary="Get orders from trading history",
+    description="Get orders from trading history with the ability to filter by ticket or position",
+)
 async def history_orders_get(date_from: datetime, date_to: datetime, group: str = None):
     if group:
         orders = mt5.history_orders_get(date_from, date_to, group=group)
@@ -317,13 +437,21 @@ async def history_orders_get(date_from: datetime, date_to: datetime, group: str 
     return {"status": "success", "orders": [o._asdict() for o in orders]}
 
 
-@app.get("/history_deals_total")
+@app.get(
+    "/history_deals_total",
+    summary="Get the number of deals in trading history",
+    description="Get the number of deals in trading history within the specified interval",
+)
 async def history_deals_total(date_from: datetime, date_to: datetime):
     total = mt5.history_deals_total(date_from, date_to)
     return {"total": total}
 
 
-@app.get("/history_deals_get")
+@app.get(
+    "/history_deals_get",
+    summary="Get deals from trading history",
+    description="Get deals from trading history with the ability to filter by ticket or position",
+)
 async def history_deals_get(date_from: datetime, date_to: datetime, group: str = None):
     if group:
         deals = mt5.history_deals_get(date_from, date_to, group=group)
