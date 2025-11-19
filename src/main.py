@@ -368,7 +368,7 @@ async def order_calc_profit(order_request: OrderRequest):
     description="Check funds sufficiency for performing a required trading operation",
 )
 async def order_check(order_request: OrderRequest):
-    result = mt5.order_check(order_request.dict())
+    result = mt5.order_check(order_request.model_dump())
     if result is None:
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success", "result": result._asdict()}
@@ -380,7 +380,7 @@ async def order_check(order_request: OrderRequest):
     description="Send a request to perform a trading operation",
 )
 async def order_send(order_request: OrderRequest):
-    result = mt5.order_send(order_request.dict())
+    result = mt5.order_send(order_request.model_dump())
     if result is None:
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success", "result": result._asdict()}
@@ -463,4 +463,4 @@ async def history_deals_get(date_from: datetime, date_to: datetime, group: str =
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
