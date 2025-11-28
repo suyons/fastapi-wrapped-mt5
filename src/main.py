@@ -4,12 +4,12 @@ from enum import Enum
 from fastapi import FastAPI
 import MetaTrader5 as mt5
 from pydantic import BaseModel
-import uvicorn
+import numpy as np
 
 app = FastAPI()
 
 
-class TimeFrame(Enum):
+class TimeFrame(int, Enum):
     TIMEFRAME_M1 = mt5.TIMEFRAME_M1
     TIMEFRAME_M2 = mt5.TIMEFRAME_M2
     TIMEFRAME_M3 = mt5.TIMEFRAME_M3
@@ -42,6 +42,19 @@ class OrderType(int, Enum):
     ORDER_TYPE_BUY_STOP_LIMIT = mt5.ORDER_TYPE_BUY_STOP_LIMIT
     ORDER_TYPE_SELL_STOP_LIMIT = mt5.ORDER_TYPE_SELL_STOP_LIMIT
     ORDER_TYPE_CLOSE_BY = mt5.ORDER_TYPE_CLOSE_BY
+
+
+class OrderFillingType(int, Enum):
+    ORDER_FILLING_FOK = mt5.ORDER_FILLING_FOK
+    ORDER_FILLING_IOC = mt5.ORDER_FILLING_IOC
+    ORDER_FILLING_RETURN = mt5.ORDER_FILLING_RETURN
+
+
+class OrderTimeType(int, Enum):
+    ORDER_TIME_GTC = mt5.ORDER_TIME_GTC
+    ORDER_TIME_DAY = mt5.ORDER_TIME_DAY
+    ORDER_TIME_SPECIFIED = mt5.ORDER_TIME_SPECIFIED
+    ORDER_TIME_SPECIFIED_DAY = mt5.ORDER_TIME_SPECIFIED_DAY
 
 
 class OrderRequest(BaseModel):
@@ -154,13 +167,15 @@ async def symbols_total():
 @app.get(
     "/symbols_get",
     summary="Get all financial instruments",
-    description="Get all financial instruments from the MetaTrader 5 terminal",
+    description="Get all financial instruments from the MetaTrader 5 terminal e.g. `*BTC*` to get all symbols containing **BTC**",
 )
 async def symbols_get(group: str = None):
     if group:
         symbols = mt5.symbols_get(group)
     else:
         symbols = mt5.symbols_get()
+    if symbols is None:
+        return {"status": "failed", "error": mt5.last_error()}
     return {"symbols": [s._asdict() for s in symbols]}
 
 
@@ -233,10 +248,27 @@ async def market_book_release(symbol: str):
     return {"status": "success"}
 
 
+def structured_array_to_list(array: np.ndarray):
+    if array is None:
+        return None
+
+    records = []
+    for record in array:
+        row = {}
+        for name in array.dtype.names:
+            value = record[name]
+            if hasattr(value, "item"):
+                row[name] = value.item()
+            else:
+                row[name] = value
+        records.append(row)
+    return records
+
+
 @app.get(
     "/copy_rates_from/{symbol}",
     summary="Get bars from a specified date",
-    description="Get bars from the MetaTrader 5 terminal starting from the specified date",
+    description="Get bars from the MetaTrader 5 terminal starting from the specified date (in ISO 8601 format) e.g. `date_from=2025-11-11T00:00:00`",
 )
 async def copy_rates_from(
     symbol: str, timeframe: TimeFrame, date_from: datetime, count: int
@@ -244,13 +276,13 @@ async def copy_rates_from(
     rates = mt5.copy_rates_from(symbol, timeframe.value, date_from, count)
     if rates is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "rates": rates}
+    return {"status": "success", "rates": structured_array_to_list(rates)}
 
 
 @app.get(
     "/copy_rates_from_pos/{symbol}",
     summary="Get bars from a specified index",
-    description="Get bars from the MetaTrader 5 terminal starting from the specified index",
+    description="Get bars from the MetaTrader 5 terminal starting from the specified index (0 = the latest bar)",
 )
 async def copy_rates_from_pos(
     symbol: str, timeframe: TimeFrame, start_pos: int, count: int
@@ -258,7 +290,7 @@ async def copy_rates_from_pos(
     rates = mt5.copy_rates_from_pos(symbol, timeframe.value, start_pos, count)
     if rates is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "rates": rates}
+    return {"status": "success", "rates": structured_array_to_list(rates)}
 
 
 @app.get(
@@ -272,7 +304,7 @@ async def copy_rates_range(
     rates = mt5.copy_rates_range(symbol, timeframe.value, date_from, date_to)
     if rates is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "rates": rates}
+    return {"status": "success", "rates": structured_array_to_list(rates)}
 
 
 @app.get(
@@ -284,7 +316,7 @@ async def copy_ticks_from(symbol: str, date_from: datetime, count: int, flags: i
     ticks = mt5.copy_ticks_from(symbol, date_from, count, flags)
     if ticks is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "ticks": ticks}
+    return {"status": "success", "ticks": structured_array_to_list(ticks)}
 
 
 @app.get(
@@ -298,7 +330,7 @@ async def copy_ticks_range(
     ticks = mt5.copy_ticks_range(symbol, date_from, date_to, flags)
     if ticks is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "ticks": ticks}
+    return {"status": "success", "ticks": structured_array_to_list(ticks)}
 
 
 @app.get(
@@ -368,8 +400,26 @@ async def order_calc_profit(order_request: OrderRequest):
     description="Check funds sufficiency for performing a required trading operation",
 )
 async def order_check(order_request: OrderRequest):
+    info = mt5.symbol_info(order_request.symbol)
+    if info is None:
+        return {"status": "failed", "error": f"Symbol {order_request.symbol} not found"}
+
     request_dict = order_request.model_dump(exclude={"type"})
     request_dict["type"] = order_request.type
+
+    filling_mode = info.filling_mode
+    req_filling_type = order_request.type_filling
+
+    if req_filling_type == mt5.ORDER_FILLING_FOK and not (
+        filling_mode & mt5.ORDER_FILLING_FOK
+    ):
+        if filling_mode & mt5.ORDER_FILLING_IOC:
+            request_dict["type_filling"] = mt5.ORDER_FILLING_IOC
+    elif req_filling_type == mt5.ORDER_FILLING_IOC and not (
+        filling_mode & mt5.ORDER_FILLING_IOC
+    ):
+        if filling_mode & mt5.ORDER_FILLING_FOK:
+            request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
 
     if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
@@ -388,8 +438,26 @@ async def order_check(order_request: OrderRequest):
     description="Send a request to perform a trading operation",
 )
 async def order_send(order_request: OrderRequest):
+    info = mt5.symbol_info(order_request.symbol)
+    if info is None:
+        return {"status": "failed", "error": f"Symbol {order_request.symbol} not found"}
+
     request_dict = order_request.model_dump(exclude={"type"})
     request_dict["type"] = order_request.type
+
+    filling_mode = info.filling_mode
+    req_filling_type = order_request.type_filling
+
+    if req_filling_type == mt5.ORDER_FILLING_FOK and not (
+        filling_mode & mt5.ORDER_FILLING_FOK
+    ):
+        if filling_mode & mt5.ORDER_FILLING_IOC:
+            request_dict["type_filling"] = mt5.ORDER_FILLING_IOC
+    elif req_filling_type == mt5.ORDER_FILLING_IOC and not (
+        filling_mode & mt5.ORDER_FILLING_IOC
+    ):
+        if filling_mode & mt5.ORDER_FILLING_FOK:
+            request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
 
     if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
@@ -479,4 +547,5 @@ async def history_deals_get(date_from: datetime, date_to: datetime, group: str =
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
