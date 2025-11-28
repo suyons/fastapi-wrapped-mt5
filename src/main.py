@@ -22,9 +22,3 @@ app.include_router(market_data.router)
 app.include_router(orders.router)
 app.include_router(positions.router)
 app.include_router(symbols.router)
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
