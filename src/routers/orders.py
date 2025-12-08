@@ -77,8 +77,8 @@ async def order_check(order_request: OrderRequest):
     if info is None:
         return {"status": "failed", "error": f"Symbol {order_request.symbol} not found"}
 
-    request_dict = order_request.model_dump(exclude={"type"})
-    request_dict["type"] = order_request.type
+    request_dict = order_request.model_dump()
+    request_dict = {k: v for k, v in request_dict.items() if v is not None}
 
     filling_mode = info.filling_mode
     req_filling_type = order_request.type_filling
@@ -115,8 +115,58 @@ async def order_send(order_request: OrderRequest):
     if info is None:
         return {"status": "failed", "error": f"Symbol {order_request.symbol} not found"}
 
-    request_dict = order_request.model_dump(exclude={"type"})
-    request_dict["type"] = order_request.type
+    tick = mt5.symbol_info_tick(order_request.symbol)
+    if tick is None:
+        return {"status": "failed", "error": f"Failed to get tick info for {order_request.symbol}"}
+
+    current_price = 0.0
+    if order_request.type == OrderType.ORDER_TYPE_BUY:
+        current_price = tick.ask
+    elif order_request.type == OrderType.ORDER_TYPE_SELL:
+        current_price = tick.bid
+    # For other order types (e.g., pending orders), current_price might be order_request.price or similar.
+    # For simplicity, we'll focus on market orders for now.
+
+    # Minimum distance for SL/TP from current price
+    min_stop_distance = info.stops_level * info.point
+
+    request_dict = order_request.model_dump()
+    request_dict = {k: v for k, v in request_dict.items() if v is not None}
+
+    # Validate and adjust SL/TP if provided
+    if request_dict.get("sl", 0) > 0:
+        sl = request_dict["sl"]
+        # Round SL to symbol's digits
+        sl = round(sl, info.digits)
+
+        # Directional check for SL
+        if order_request.type == OrderType.ORDER_TYPE_BUY and sl >= current_price:
+            return {"status": "failed", "error": "For BUY order, SL must be below current price."}
+        elif order_request.type == OrderType.ORDER_TYPE_SELL and sl <= current_price:
+            return {"status": "failed", "error": "For SELL order, SL must be above current price."}
+
+        # Check min_stop_distance for SL
+        if abs(current_price - sl) < min_stop_distance:
+            return {"status": "failed", "error": f"SL is too close to current price. Minimum distance: {min_stop_distance}"}
+        
+        request_dict["sl"] = sl # Update with rounded value
+
+    if request_dict.get("tp", 0) > 0:
+        tp = request_dict["tp"]
+        # Round TP to symbol's digits
+        tp = round(tp, info.digits)
+
+        # Directional check for TP
+        if order_request.type == OrderType.ORDER_TYPE_BUY and tp <= current_price:
+            return {"status": "failed", "error": "For BUY order, TP must be above current price."}
+        elif order_request.type == OrderType.ORDER_TYPE_SELL and tp >= current_price:
+            return {"status": "failed", "error": "For SELL order, TP must be below current price."}
+
+        # Check min_stop_distance for TP
+        if abs(current_price - tp) < min_stop_distance:
+            return {"status": "failed", "error": f"TP is too close to current price. Minimum distance: {min_stop_distance}"}
+
+        request_dict["tp"] = tp # Update with rounded value
 
     filling_mode = info.filling_mode
     req_filling_type = order_request.type_filling
