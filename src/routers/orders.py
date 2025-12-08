@@ -131,10 +131,11 @@ async def order_send(order_request: OrderRequest):
     info_dict = info._asdict()
     stops_level = info_dict.get("stops_level")
 
-    if stops_level is None:
-        return {"status": "failed", "error": f"stops_level information not available for symbol {order_request.symbol}. Cannot validate SL/TP."}
-
-    min_stop_distance = stops_level * info.point
+    min_stop_distance = 0.0 # Default to 0, if stops_level is not available
+    if stops_level is not None:
+        min_stop_distance = stops_level * info.point
+    else:
+        print(f"Warning: stops_level information not available for symbol {order_request.symbol}. Proceeding without this specific validation.")
 
     request_dict = order_request.model_dump()
     request_dict = {k: v for k, v in request_dict.items() if v is not None}
