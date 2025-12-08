@@ -82,9 +82,9 @@ class OrderRequest(BaseModel):
     sl: float = 0
     tp: float = 0
     deviation: int = 0
-    type: OrderType
-    type_filling: OrderTypeFilling
-    type_time: OrderTypeTime
+    type: Optional[OrderType] = None
+    type_filling: Optional[OrderTypeFilling] = None
+    type_time: Optional[OrderTypeTime] = None
     expiration: Optional[int] = None
     comment: str = ""
     position: Optional[int] = None
