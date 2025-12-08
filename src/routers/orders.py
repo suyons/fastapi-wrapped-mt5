@@ -189,9 +189,15 @@ async def order_send(order_request: OrderRequest):
         if filling_mode & mt5.ORDER_FILLING_FOK:
             request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
 
-    if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
+    # Determine the correct action based on the request
+    if order_request.position is not None and (order_request.sl > 0 or order_request.tp > 0):
+        # If position and SL/TP are provided, it's a modification request
+        request_dict["action"] = mt5.TRADE_ACTION_SLTP
+    elif order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
+        # Otherwise, if it's a BUY/SELL type, it's a deal (market order)
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
     else:
+        # For other order types (e.g., limits, stops), it's a pending order
         request_dict["action"] = mt5.TRADE_ACTION_PENDING
 
     result = mt5.order_send(request_dict)
