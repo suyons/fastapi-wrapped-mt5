@@ -128,7 +128,13 @@ async def order_send(order_request: OrderRequest):
     # For simplicity, we'll focus on market orders for now.
 
     # Minimum distance for SL/TP from current price
-    min_stop_distance = info.stops_level * info.point
+    info_dict = info._asdict()
+    stops_level = info_dict.get("stops_level")
+
+    if stops_level is None:
+        return {"status": "failed", "error": f"stops_level information not available for symbol {order_request.symbol}. Cannot validate SL/TP."}
+
+    min_stop_distance = stops_level * info.point
 
     request_dict = order_request.model_dump()
     request_dict = {k: v for k, v in request_dict.items() if v is not None}
