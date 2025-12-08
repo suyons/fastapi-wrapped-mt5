@@ -190,9 +190,22 @@ async def order_send(order_request: OrderRequest):
             request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
 
     # Determine the correct action based on the request
-    if order_request.position is not None and (order_request.sl > 0 or order_request.tp > 0):
+    if order_request.position is not None and (order_request.sl is not None and order_request.sl > 0 or order_request.tp is not None and order_request.tp > 0):
         # If position and SL/TP are provided, it's a modification request
         request_dict["action"] = mt5.TRADE_ACTION_SLTP
+
+        # Fetch position details to get the open price and volume
+        positions = mt5.positions_get(ticket=order_request.position)
+        if positions is None or not positions:
+            return {"status": "failed", "error": f"Position {order_request.position} not found."}
+        
+        position_info = positions[0] # Assuming ticket returns a list with one position
+
+        # Set the price for SL/TP modification requests to the position's open price
+        # This is often required by some brokers/terminals, even if documentation says price is not used.
+        request_dict["price"] = position_info.price_open
+        # Also ensure that volume is set to position_info.volume
+        request_dict["volume"] = position_info.volume
     elif order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
         # Otherwise, if it's a BUY/SELL type, it's a deal (market order)
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
