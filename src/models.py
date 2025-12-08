@@ -72,7 +72,7 @@ class OrderTypeTime(int, Enum):
     ORDER_TIME_SPECIFIED_DAY = mt5.ORDER_TIME_SPECIFIED_DAY
 
 class OrderRequest(BaseModel):
-    action: TradeRequestActions
+    action: Optional[TradeRequestActions] = None
     magic: Optional[int] = None
     order: Optional[int] = None
     symbol: str
