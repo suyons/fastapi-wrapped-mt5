@@ -206,6 +206,29 @@ async def order_send(order_request: OrderRequest):
         request_dict["price"] = position_info.price_open
         # Also ensure that volume is set to position_info.volume
         request_dict["volume"] = position_info.volume
+    elif order_request.position is not None and (order_request.sl is None or order_request.sl == 0) and (order_request.tp is None or order_request.tp == 0):
+        # If position is provided and no SL/TP, it's a close position request
+        positions = mt5.positions_get(ticket=order_request.position)
+        if positions is None or not positions:
+            return {"status": "failed", "error": f"Position {order_request.position} not found."}
+        
+        position_info = positions[0]
+
+        # Determine the opposite order type for closing
+        if position_info.type == mt5.POSITION_TYPE_BUY:
+            request_dict["type"] = mt5.ORDER_TYPE_SELL
+            if tick.bid == 0.0:
+                return {"status": "failed", "error": "Cannot close BUY position: current BID price is 0."}
+            request_dict["price"] = tick.bid # Close BUY with BID price
+        elif position_info.type == mt5.POSITION_TYPE_SELL:
+            request_dict["type"] = mt5.ORDER_TYPE_BUY
+            if tick.ask == 0.0:
+                return {"status": "failed", "error": "Cannot close SELL position: current ASK price is 0."}
+            request_dict["price"] = tick.ask # Close SELL with ASK price
+        
+        request_dict["action"] = mt5.TRADE_ACTION_DEAL
+        request_dict["symbol"] = position_info.symbol # Ensure symbol is correct for position
+        request_dict["volume"] = order_request.volume if order_request.volume > 0 else position_info.volume # Close full or partial volume
     elif order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
         # Otherwise, if it's a BUY/SELL type, it's a deal (market order)
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
