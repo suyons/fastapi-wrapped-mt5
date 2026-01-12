@@ -1,1 +1,0 @@
-C:/code/fastapi-wrapped-mt5/README.md
