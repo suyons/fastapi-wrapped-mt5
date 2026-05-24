@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 import MetaTrader5 as mt5
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class TimeFrame(int, Enum):
@@ -60,31 +60,23 @@ class TradeRequestActions(int, Enum):
     TRADE_ACTION_REMOVE = mt5.TRADE_ACTION_REMOVE
     TRADE_ACTION_CLOSE_BY = mt5.TRADE_ACTION_CLOSE_BY
 
-class OrderTypeFilling(int, Enum):
-    ORDER_FILLING_FOK = mt5.ORDER_FILLING_FOK
-    ORDER_FILLING_IOC = mt5.ORDER_FILLING_IOC
-    ORDER_FILLING_RETURN = mt5.ORDER_FILLING_RETURN
-
-class OrderTypeTime(int, Enum):
-    ORDER_TIME_GTC = mt5.ORDER_TIME_GTC
-    ORDER_TIME_DAY = mt5.ORDER_TIME_DAY
-    ORDER_TIME_SPECIFIED = mt5.ORDER_TIME_SPECIFIED
-    ORDER_TIME_SPECIFIED_DAY = mt5.ORDER_TIME_SPECIFIED_DAY
 
 class OrderRequest(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     action: Optional[TradeRequestActions] = None
     magic: Optional[int] = None
     order: Optional[int] = None
     symbol: str
     volume: float
-    price: float = 0
+    price: float = 0.0
     stoplimit: Optional[float] = None
-    sl: float = 0
-    tp: float = 0
+    sl: float = 0.0
+    tp: float = 0.0
     deviation: int = 0
     type: Optional[OrderType] = None
-    type_filling: Optional[OrderTypeFilling] = None
-    type_time: Optional[OrderTypeTime] = None
+    type_filling: Optional[OrderFillingType] = None
+    type_time: Optional[OrderTimeType] = None
     expiration: Optional[int] = None
     comment: str = ""
     position: Optional[int] = None

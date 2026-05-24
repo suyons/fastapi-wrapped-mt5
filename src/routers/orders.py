@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 import MetaTrader5 as mt5
 
-from src.models import OrderRequest, OrderType
+from src.models import OrderRequest, OrderType, TradeRequestActions
+from src.utils import resolve_filling
 
 router = APIRouter(tags=["orders"])
 
@@ -35,11 +36,11 @@ async def orders_get(symbol: str = None, ticket: int = None):
 @router.post(
     "/order_calc_margin",
     summary="Calculate margin for a trading operation",
-    description="Return margin in the account currency to perform a specified trading operation",
+    description="Return margin in the account currency to perform a specified trading operation. Provide `type` (0=BUY, 1=SELL), `symbol`, `volume`, and `price`.",
 )
 async def order_calc_margin(order_request: OrderRequest):
     margin = mt5.order_calc_margin(
-        order_request.type.value,
+        order_request.type,
         order_request.symbol,
         order_request.volume,
         order_request.price,
@@ -52,15 +53,15 @@ async def order_calc_margin(order_request: OrderRequest):
 @router.post(
     "/order_calc_profit",
     summary="Calculate profit for a trading operation",
-    description="Return profit in the account currency for a specified trading operation",
+    description="Return profit in the account currency. Provide `type` (0=BUY, 1=SELL), `symbol`, `volume`, `price` (open price), and `tp` (close/target price).",
 )
 async def order_calc_profit(order_request: OrderRequest):
     profit = mt5.order_calc_profit(
-        order_request.type.value,
+        order_request.type,
         order_request.symbol,
         order_request.volume,
         order_request.price,
-        order_request.sl,
+        order_request.tp,
     )
     if profit is None:
         return {"status": "failed", "error": mt5.last_error()}
@@ -77,24 +78,10 @@ async def order_check(order_request: OrderRequest):
     if info is None:
         return {"status": "failed", "error": f"Symbol {order_request.symbol} not found"}
 
-    request_dict = order_request.model_dump()
-    request_dict = {k: v for k, v in request_dict.items() if v is not None}
+    request_dict = {k: v for k, v in order_request.model_dump().items() if v is not None}
+    request_dict["type_filling"] = resolve_filling(info, order_request.type_filling)
 
-    filling_mode = info.filling_mode
-    req_filling_type = order_request.type_filling
-
-    if req_filling_type == mt5.ORDER_FILLING_FOK and not (
-        filling_mode & mt5.ORDER_FILLING_FOK
-    ):
-        if filling_mode & mt5.ORDER_FILLING_IOC:
-            request_dict["type_filling"] = mt5.ORDER_FILLING_IOC
-    elif req_filling_type == mt5.ORDER_FILLING_IOC and not (
-        filling_mode & mt5.ORDER_FILLING_IOC
-    ):
-        if filling_mode & mt5.ORDER_FILLING_FOK:
-            request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
-
-    if order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
+    if order_request.type in (mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL):
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
     else:
         request_dict["action"] = mt5.TRADE_ACTION_PENDING
@@ -108,7 +95,7 @@ async def order_check(order_request: OrderRequest):
 @router.post(
     "/order_send",
     summary="Send a request to perform a trading operation",
-    description="Send a request to perform a trading operation",
+    description="Send a request to perform a trading operation from open to close and SL/TP modification",
 )
 async def order_send(order_request: OrderRequest):
     info = mt5.symbol_info(order_request.symbol)
@@ -119,122 +106,63 @@ async def order_send(order_request: OrderRequest):
     if tick is None:
         return {"status": "failed", "error": f"Failed to get tick info for {order_request.symbol}"}
 
-    current_price = 0.0
-    if order_request.type == OrderType.ORDER_TYPE_BUY:
-        current_price = tick.ask
-    elif order_request.type == OrderType.ORDER_TYPE_SELL:
-        current_price = tick.bid
-    # For other order types (e.g., pending orders), current_price might be order_request.price or similar.
-    # For simplicity, we'll focus on market orders for now.
+    request_dict = {k: v for k, v in order_request.model_dump().items() if v is not None}
 
-    # Minimum distance for SL/TP from current price
-    info_dict = info._asdict()
-    stops_level = info_dict.get("stops_level")
-
-    min_stop_distance = 0.0 # Default to 0, if stops_level is not available
-    if stops_level is not None:
-        min_stop_distance = stops_level * info.point
-    else:
-        print(f"Warning: stops_level information not available for symbol {order_request.symbol}. Proceeding without this specific validation.")
-
-    request_dict = order_request.model_dump()
-    request_dict = {k: v for k, v in request_dict.items() if v is not None}
-
-    # Validate and adjust SL/TP if provided
-    if request_dict.get("sl", 0) > 0:
-        sl = request_dict["sl"]
-        # Round SL to symbol's digits
-        sl = round(sl, info.digits)
-
-        # Directional check for SL
-        if order_request.type == OrderType.ORDER_TYPE_BUY and sl >= current_price:
-            return {"status": "failed", "error": "For BUY order, SL must be below current price."}
-        elif order_request.type == OrderType.ORDER_TYPE_SELL and sl <= current_price:
-            return {"status": "failed", "error": "For SELL order, SL must be above current price."}
-
-        # Check min_stop_distance for SL
-        if abs(current_price - sl) < min_stop_distance:
-            return {"status": "failed", "error": f"SL is too close to current price. Minimum distance: {min_stop_distance}"}
-        
-        request_dict["sl"] = sl # Update with rounded value
-
-    if request_dict.get("tp", 0) > 0:
-        tp = request_dict["tp"]
-        # Round TP to symbol's digits
-        tp = round(tp, info.digits)
-
-        # Directional check for TP
-        if order_request.type == OrderType.ORDER_TYPE_BUY and tp <= current_price:
-            return {"status": "failed", "error": "For BUY order, TP must be above current price."}
-        elif order_request.type == OrderType.ORDER_TYPE_SELL and tp >= current_price:
-            return {"status": "failed", "error": "For SELL order, TP must be below current price."}
-
-        # Check min_stop_distance for TP
-        if abs(current_price - tp) < min_stop_distance:
-            return {"status": "failed", "error": f"TP is too close to current price. Minimum distance: {min_stop_distance}"}
-
-        request_dict["tp"] = tp # Update with rounded value
-
-    filling_mode = info.filling_mode
-    req_filling_type = order_request.type_filling
-
-    if req_filling_type == mt5.ORDER_FILLING_FOK and not (
-        filling_mode & mt5.ORDER_FILLING_FOK
-    ):
-        if filling_mode & mt5.ORDER_FILLING_IOC:
-            request_dict["type_filling"] = mt5.ORDER_FILLING_IOC
-    elif req_filling_type == mt5.ORDER_FILLING_IOC and not (
-        filling_mode & mt5.ORDER_FILLING_IOC
-    ):
-        if filling_mode & mt5.ORDER_FILLING_FOK:
-            request_dict["type_filling"] = mt5.ORDER_FILLING_FOK
-
-    # Determine the correct action based on the request
-    if order_request.position is not None and (order_request.sl is not None and order_request.sl > 0 or order_request.tp is not None and order_request.tp > 0):
-        # If position and SL/TP are provided, it's a modification request
-        request_dict["action"] = mt5.TRADE_ACTION_SLTP
-
-        # Fetch position details to get the open price and volume
+    if order_request.position is not None:
         positions = mt5.positions_get(ticket=order_request.position)
-        if positions is None or not positions:
-            return {"status": "failed", "error": f"Position {order_request.position} not found."}
-        
-        position_info = positions[0] # Assuming ticket returns a list with one position
+        if not positions:
+            return {"status": "failed", "error": f"Position {order_request.position} not found"}
+        pos = positions[0]
 
-        # Set the price for SL/TP modification requests to the position's open price
-        # This is often required by some brokers/terminals, even if documentation says price is not used.
-        request_dict["price"] = position_info.price_open
-        # Also ensure that volume is set to position_info.volume
-        request_dict["volume"] = position_info.volume
-    elif order_request.position is not None and (order_request.sl is None or order_request.sl == 0) and (order_request.tp is None or order_request.tp == 0):
-        # If position is provided and no SL/TP, it's a close position request
-        positions = mt5.positions_get(ticket=order_request.position)
-        if positions is None or not positions:
-            return {"status": "failed", "error": f"Position {order_request.position} not found."}
-        
-        position_info = positions[0]
+        has_sltp = (order_request.sl and order_request.sl > 0) or (order_request.tp and order_request.tp > 0)
+        if has_sltp:
+            # SL/TP modification
+            request_dict["action"] = mt5.TRADE_ACTION_SLTP
+            request_dict["price"] = pos.price_open
+            request_dict["volume"] = pos.volume
+        else:
+            # Close position
+            if pos.type == mt5.POSITION_TYPE_BUY:
+                request_dict["type"] = mt5.ORDER_TYPE_SELL
+                request_dict["price"] = tick.bid
+            else:
+                request_dict["type"] = mt5.ORDER_TYPE_BUY
+                request_dict["price"] = tick.ask
+            request_dict["action"] = mt5.TRADE_ACTION_DEAL
+            request_dict["symbol"] = pos.symbol
+            request_dict["volume"] = order_request.volume if order_request.volume > 0 else pos.volume
+            request_dict["type_filling"] = resolve_filling(info, order_request.type_filling)
+    elif order_request.type in (mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL):
+        # Market order
+        current_price = tick.ask if order_request.type == mt5.ORDER_TYPE_BUY else tick.bid
+        min_dist = info.trade_stops_level * info.point
 
-        # Determine the opposite order type for closing
-        if position_info.type == mt5.POSITION_TYPE_BUY:
-            request_dict["type"] = mt5.ORDER_TYPE_SELL
-            if tick.bid == 0.0:
-                return {"status": "failed", "error": "Cannot close BUY position: current BID price is 0."}
-            request_dict["price"] = tick.bid # Close BUY with BID price
-        elif position_info.type == mt5.POSITION_TYPE_SELL:
-            request_dict["type"] = mt5.ORDER_TYPE_BUY
-            if tick.ask == 0.0:
-                return {"status": "failed", "error": "Cannot close SELL position: current ASK price is 0."}
-            request_dict["price"] = tick.ask # Close SELL with ASK price
-        
+        if request_dict.get("sl", 0.0) > 0:
+            sl = round(request_dict["sl"], info.digits)
+            if order_request.type == mt5.ORDER_TYPE_BUY and sl >= current_price:
+                return {"status": "failed", "error": "For BUY order, SL must be below current price"}
+            if order_request.type == mt5.ORDER_TYPE_SELL and sl <= current_price:
+                return {"status": "failed", "error": "For SELL order, SL must be above current price"}
+            if min_dist and abs(current_price - sl) < min_dist:
+                return {"status": "failed", "error": f"SL too close to current price (min distance: {min_dist})"}
+            request_dict["sl"] = sl
+
+        if request_dict.get("tp", 0.0) > 0:
+            tp = round(request_dict["tp"], info.digits)
+            if order_request.type == mt5.ORDER_TYPE_BUY and tp <= current_price:
+                return {"status": "failed", "error": "For BUY order, TP must be above current price"}
+            if order_request.type == mt5.ORDER_TYPE_SELL and tp >= current_price:
+                return {"status": "failed", "error": "For SELL order, TP must be below current price"}
+            if min_dist and abs(current_price - tp) < min_dist:
+                return {"status": "failed", "error": f"TP too close to current price (min distance: {min_dist})"}
+            request_dict["tp"] = tp
+
         request_dict["action"] = mt5.TRADE_ACTION_DEAL
-        request_dict["symbol"] = position_info.symbol # Ensure symbol is correct for position
-        request_dict["volume"] = order_request.volume if order_request.volume > 0 else position_info.volume # Close full or partial volume
-    elif order_request.type in [OrderType.ORDER_TYPE_BUY, OrderType.ORDER_TYPE_SELL]:
-        # Otherwise, if it's a BUY/SELL type, it's a deal (market order)
-        request_dict["action"] = mt5.TRADE_ACTION_DEAL
+        request_dict["type_filling"] = resolve_filling(info, order_request.type_filling)
     else:
-        # For other order types (e.g., limits, stops), it's a pending order
+        # Pending order
         request_dict["action"] = mt5.TRADE_ACTION_PENDING
+        request_dict["type_filling"] = resolve_filling(info, order_request.type_filling)
 
     result = mt5.order_send(request_dict)
     if result is None:

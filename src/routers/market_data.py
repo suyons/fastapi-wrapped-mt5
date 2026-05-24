@@ -28,7 +28,7 @@ async def market_book_get(symbol: str):
     book = mt5.market_book_get(symbol)
     if book is None:
         return {"status": "failed", "error": mt5.last_error()}
-    return {"status": "success", "book": book}
+    return {"status": "success", "book": [item._asdict() for item in book]}
 
 
 @router.post(
