@@ -18,10 +18,20 @@ async def history_orders_total(date_from: datetime, date_to: datetime):
 @router.get(
     "/history_orders_get",
     summary="Get orders from trading history",
-    description="Get orders from trading history with the ability to filter by ticket or position",
+    description="Get orders from trading history. Filter by `group` (e.g. `*USD*`), `ticket` (order ticket), or `position` (position ID).",
 )
-async def history_orders_get(date_from: datetime, date_to: datetime, group: str = None):
-    if group:
+async def history_orders_get(
+    date_from: datetime,
+    date_to: datetime,
+    group: str = None,
+    ticket: int = None,
+    position: int = None,
+):
+    if ticket is not None:
+        orders = mt5.history_orders_get(ticket=ticket)
+    elif position is not None:
+        orders = mt5.history_orders_get(position=position)
+    elif group:
         orders = mt5.history_orders_get(date_from, date_to, group=group)
     else:
         orders = mt5.history_orders_get(date_from, date_to)
@@ -43,10 +53,20 @@ async def history_deals_total(date_from: datetime, date_to: datetime):
 @router.get(
     "/history_deals_get",
     summary="Get deals from trading history",
-    description="Get deals from trading history with the ability to filter by ticket or position",
+    description="Get deals from trading history. Filter by `group` (e.g. `*USD*`), `ticket` (deal ticket), or `position` (position ID).",
 )
-async def history_deals_get(date_from: datetime, date_to: datetime, group: str = None):
-    if group:
+async def history_deals_get(
+    date_from: datetime,
+    date_to: datetime,
+    group: str = None,
+    ticket: int = None,
+    position: int = None,
+):
+    if ticket is not None:
+        deals = mt5.history_deals_get(ticket=ticket)
+    elif position is not None:
+        deals = mt5.history_deals_get(position=position)
+    elif group:
         deals = mt5.history_deals_get(date_from, date_to, group=group)
     else:
         deals = mt5.history_deals_get(date_from, date_to)
