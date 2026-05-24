@@ -5,10 +5,7 @@ A FastAPI wrapper around the MetaTrader 5 (MT5) trading platform that exposes it
 ## Quick start
 
 ```bash
-# Git Bash / Linux
-bash start.sh
-
-# PowerShell (Windows) — with hot-reload on file changes
+# PowerShell (Windows)
 ./start.ps1
 ```
 
