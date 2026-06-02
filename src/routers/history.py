@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter
 import MetaTrader5 as mt5
 
@@ -56,8 +57,8 @@ async def history_deals_total(date_from: datetime, date_to: datetime):
     description="Get deals from trading history. Filter by `group` (e.g. `*USD*`), `ticket` (deal ticket), or `position` (position ID).",
 )
 async def history_deals_get(
-    date_from: datetime,
-    date_to: datetime,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
     group: str = None,
     ticket: int = None,
     position: int = None,
@@ -66,10 +67,12 @@ async def history_deals_get(
         deals = mt5.history_deals_get(ticket=ticket)
     elif position is not None:
         deals = mt5.history_deals_get(position=position)
-    elif group:
+    elif group and date_from and date_to:
         deals = mt5.history_deals_get(date_from, date_to, group=group)
-    else:
+    elif date_from and date_to:
         deals = mt5.history_deals_get(date_from, date_to)
+    else:
+        return {"status": "failed", "error": "date_from and date_to required when not filtering by ticket or position"}
     if deals is None:
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success", "deals": [d._asdict() for d in deals]}
