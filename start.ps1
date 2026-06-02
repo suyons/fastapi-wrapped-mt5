@@ -1,1 +1,1 @@
-uv run python launch.py
+uv run python src/launch.py

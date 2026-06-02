@@ -12,7 +12,7 @@ The MT5 Python library uses **global state per process** — one process = one t
 ./start.ps1          # launches all instances defined in src/config.py
 ```
 
-Internally, `start.ps1` calls `uv run python launch.py`. `launch.py` reads `ACCOUNTS` from `src/config.py` and spawns one uvicorn subprocess per entry, injecting `MT5_TERMINAL_PATH` as an environment variable.
+Internally, `start.ps1` calls `uv run python src/launch.py`. `src/launch.py` reads `ACCOUNTS` from `src/config.py` and spawns one uvicorn subprocess per entry, injecting `MT5_TERMINAL_PATH` as an environment variable.
 
 To run a single instance manually:
 
@@ -26,7 +26,7 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
 | File | Purpose |
 |------|---------|
 | `src/config.py` | `ACCOUNTS` list — defines terminal path and port per instance |
-| `launch.py` | Reads `ACCOUNTS`, spawns one uvicorn process per entry |
+| `src/launch.py` | Reads `ACCOUNTS`, spawns one uvicorn process per entry |
 | `src/main.py` | FastAPI app assembly — mounts all routers |
 | `src/models.py` | Pydantic models and MT5 enum wrappers |
 | `src/utils.py` | `structured_array_to_list` for numpy results, `resolve_filling` for order fill mode |
