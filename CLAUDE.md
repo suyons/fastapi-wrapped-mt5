@@ -12,7 +12,9 @@ The MT5 Python library uses **global state per process** — one process = one t
 ./start.ps1          # launches all instances defined in src/config.py
 ```
 
-Internally, `start.ps1` calls `uv run python src/launch.py`. `src/launch.py` reads `ACCOUNTS` from `src/config.py` and spawns one uvicorn subprocess per entry, injecting `MT5_TERMINAL_PATH` as an environment variable.
+Internally, `start.ps1` calls `uv run python -m src.launch`. `src/launch.py` reads `ACCOUNTS` from `src/config.py` and spawns one uvicorn subprocess per entry, injecting `MT5_TERMINAL_PATH` as an environment variable.
+
+> Note: must be run as a module (`-m src.launch`) — running `python src/launch.py` directly fails because Python would put `src/` on `sys.path` instead of the project root, breaking `from src.config import ACCOUNTS`.
 
 To run a single instance manually:
 
