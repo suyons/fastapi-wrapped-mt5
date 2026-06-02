@@ -4,20 +4,52 @@ A FastAPI wrapper around the MetaTrader 5 (MT5) trading platform that exposes it
 
 ## Quick start
 
-```bash
+```powershell
 # PowerShell (Windows)
 ./start.ps1
 ```
 
-The server starts on `http://0.0.0.0:8000`. Interactive API docs available at `http://localhost:8000/docs`.
+`start.ps1` reads `src/config.py` and launches one uvicorn process per entry in `ACCOUNTS`. With the default config, two servers start:
 
-> **Important**: call `POST /initialize` before any other endpoint to establish the MT5 connection.
+| Port | Terminal |
+|------|----------|
+| 8001 | `C:\Program Files\MetaTrader 5\terminal64.exe` |
+| 8002 | `C:\Program Files\MetaTrader 5-2\terminal64.exe` |
+
+Interactive API docs: `http://localhost:8001/docs` and `http://localhost:8002/docs`
+
+> **Important**: call `POST /initialize` before any other endpoint on each port to establish the MT5 connection.
+
+---
+
+## Multi-account configuration
+
+All terminal connections are defined in **`src/config.py`**:
+
+```python
+ACCOUNTS: list[dict] = [
+    {
+        "path": r"C:\Program Files\MetaTrader 5\terminal64.exe",
+        "port": 8001,
+    },
+    {
+        "path": r"C:\Program Files\MetaTrader 5-2\terminal64.exe",
+        "port": 8002,
+    },
+]
+```
+
+To add more accounts, append entries to the list. Each entry must have:
+- `path` — absolute path to the `terminal64.exe` of that MT5 installation
+- `port` — the port this API instance will listen on
+
+Each entry runs as an isolated process. The `MT5_TERMINAL_PATH` environment variable is injected automatically by `launch.py` so each process connects to the correct terminal.
 
 ---
 
 ## API reference with examples
 
-All examples assume the server is at `http://localhost:8000`. Replace with your actual host/IP.
+All examples assume the server is at `http://localhost:8001`. Replace with your actual host/port.
 
 ### Connection
 
@@ -26,7 +58,7 @@ All examples assume the server is at `http://localhost:8000`. Replace with your 
 Establish a connection with the MT5 terminal.
 
 ```sh
-curl -X POST 'http://localhost:8000/initialize' \
+curl -X POST 'http://localhost:8001/initialize' \
   -H 'accept: application/json'
 ```
 
@@ -39,7 +71,7 @@ curl -X POST 'http://localhost:8000/initialize' \
 Log in to a trading account.
 
 ```sh
-curl -X POST 'http://localhost:8000/login' \
+curl -X POST 'http://localhost:8001/login' \
   -H 'Content-Type: application/json' \
   -d '{"account": 12345678, "password": "your_password", "server": "BrokerName-Demo"}'
 ```
@@ -53,7 +85,7 @@ curl -X POST 'http://localhost:8000/login' \
 Close the MT5 terminal connection.
 
 ```sh
-curl -X POST 'http://localhost:8000/shutdown' \
+curl -X POST 'http://localhost:8001/shutdown' \
   -H 'accept: application/json'
 ```
 
@@ -70,7 +102,7 @@ curl -X POST 'http://localhost:8000/shutdown' \
 Return the MT5 terminal version.
 
 ```sh
-curl 'http://localhost:8000/version'
+curl 'http://localhost:8001/version'
 ```
 
 ```json
@@ -82,7 +114,7 @@ curl 'http://localhost:8000/version'
 Return the last error code and message.
 
 ```sh
-curl 'http://localhost:8000/last_error'
+curl 'http://localhost:8001/last_error'
 ```
 
 ```json
@@ -94,7 +126,7 @@ curl 'http://localhost:8000/last_error'
 Get current trading account information.
 
 ```sh
-curl 'http://localhost:8000/account_info'
+curl 'http://localhost:8001/account_info'
 ```
 
 ```json
@@ -138,7 +170,7 @@ curl 'http://localhost:8000/account_info'
 Get status and parameters of the connected MT5 terminal.
 
 ```sh
-curl 'http://localhost:8000/terminal_info'
+curl 'http://localhost:8001/terminal_info'
 ```
 
 ```json
@@ -180,7 +212,7 @@ curl 'http://localhost:8000/terminal_info'
 Get the total number of available financial instruments.
 
 ```sh
-curl 'http://localhost:8000/symbols_total'
+curl 'http://localhost:8001/symbols_total'
 ```
 
 ```json
@@ -192,7 +224,7 @@ curl 'http://localhost:8000/symbols_total'
 Get all symbols, optionally filtered by group pattern (e.g. `*XAU*`).
 
 ```sh
-curl 'http://localhost:8000/symbols_get?group=*XAU*'
+curl 'http://localhost:8001/symbols_get?group=*XAU*'
 ```
 
 ```json
@@ -218,7 +250,7 @@ curl 'http://localhost:8000/symbols_get?group=*XAU*'
 Get full data for a specific symbol.
 
 ```sh
-curl 'http://localhost:8000/symbol_info/XAUUSD.r'
+curl 'http://localhost:8001/symbol_info/XAUUSD.r'
 ```
 
 ```json
@@ -245,7 +277,7 @@ curl 'http://localhost:8000/symbol_info/XAUUSD.r'
 Get the latest tick for a symbol.
 
 ```sh
-curl 'http://localhost:8000/symbol_info_tick/XAUUSD.r'
+curl 'http://localhost:8001/symbol_info_tick/XAUUSD.r'
 ```
 
 ```json
@@ -269,7 +301,7 @@ curl 'http://localhost:8000/symbol_info_tick/XAUUSD.r'
 Add or remove a symbol from the MarketWatch window.
 
 ```sh
-curl -X POST 'http://localhost:8000/symbol_select/XAUUSD.r?enable=true'
+curl -X POST 'http://localhost:8001/symbol_select/XAUUSD.r?enable=true'
 ```
 
 ```json
@@ -296,7 +328,7 @@ All timeframe values match the MT5 integer constants:
 Get bars starting from a position index. `start_pos=0` is the current forming bar; `start_pos=1` is the latest completed bar.
 
 ```sh
-curl 'http://localhost:8000/copy_rates_from_pos/XAUUSD.r?timeframe=5&start_pos=0&count=3'
+curl 'http://localhost:8001/copy_rates_from_pos/XAUUSD.r?timeframe=5&start_pos=0&count=3'
 ```
 
 ```json
@@ -342,7 +374,7 @@ curl 'http://localhost:8000/copy_rates_from_pos/XAUUSD.r?timeframe=5&start_pos=0
 Get `count` bars starting from a specified date (ISO 8601).
 
 ```sh
-curl 'http://localhost:8000/copy_rates_from/XAUUSD.r?timeframe=5&date_from=2025-05-01T00:00:00&count=3'
+curl 'http://localhost:8001/copy_rates_from/XAUUSD.r?timeframe=5&date_from=2025-05-01T00:00:00&count=3'
 ```
 
 Response format is the same as `copy_rates_from_pos`.
@@ -352,7 +384,7 @@ Response format is the same as `copy_rates_from_pos`.
 Get all bars within a date range.
 
 ```sh
-curl 'http://localhost:8000/copy_rates_range/XAUUSD.r?timeframe=5&date_from=2025-05-01T07:00:00&date_to=2025-05-01T08:00:00'
+curl 'http://localhost:8001/copy_rates_range/XAUUSD.r?timeframe=5&date_from=2025-05-01T07:00:00&date_to=2025-05-01T08:00:00'
 ```
 
 Response format is the same as `copy_rates_from_pos`.
@@ -362,7 +394,7 @@ Response format is the same as `copy_rates_from_pos`.
 Get `count` ticks starting from a specified date. `flags=1` returns bid/ask ticks.
 
 ```sh
-curl 'http://localhost:8000/copy_ticks_from/XAUUSD.r?date_from=2025-05-01T07:00:00&count=3&flags=1'
+curl 'http://localhost:8001/copy_ticks_from/XAUUSD.r?date_from=2025-05-01T07:00:00&count=3&flags=1'
 ```
 
 ```json
@@ -388,7 +420,7 @@ curl 'http://localhost:8000/copy_ticks_from/XAUUSD.r?date_from=2025-05-01T07:00:
 Get all ticks within a date range.
 
 ```sh
-curl 'http://localhost:8000/copy_ticks_range/XAUUSD.r?date_from=2025-12-10T01:00:00&date_to=2025-12-10T01:05:00&flags=1'
+curl 'http://localhost:8001/copy_ticks_range/XAUUSD.r?date_from=2025-12-10T01:00:00&date_to=2025-12-10T01:05:00&flags=1'
 ```
 
 Response format is the same as `copy_ticks_from`.
@@ -398,7 +430,7 @@ Response format is the same as `copy_ticks_from`.
 Subscribe to Market Depth change events. Not supported by all brokers.
 
 ```sh
-curl -X POST 'http://localhost:8000/market_book_add/XAUUSD.r'
+curl -X POST 'http://localhost:8001/market_book_add/XAUUSD.r'
 ```
 
 #### GET /market_book_get/{symbol}
@@ -406,7 +438,7 @@ curl -X POST 'http://localhost:8000/market_book_add/XAUUSD.r'
 Get current Market Depth entries. Requires a prior `market_book_add` call.
 
 ```sh
-curl 'http://localhost:8000/market_book_get/XAUUSD.r'
+curl 'http://localhost:8001/market_book_get/XAUUSD.r'
 ```
 
 #### POST /market_book_release/{symbol}
@@ -414,7 +446,7 @@ curl 'http://localhost:8000/market_book_get/XAUUSD.r'
 Cancel Market Depth subscription.
 
 ```sh
-curl -X POST 'http://localhost:8000/market_book_release/XAUUSD.r'
+curl -X POST 'http://localhost:8001/market_book_release/XAUUSD.r'
 ```
 
 ---
@@ -426,7 +458,7 @@ curl -X POST 'http://localhost:8000/market_book_release/XAUUSD.r'
 Get the number of currently active (pending) orders.
 
 ```sh
-curl 'http://localhost:8000/orders_total'
+curl 'http://localhost:8001/orders_total'
 ```
 
 ```json
@@ -438,7 +470,7 @@ curl 'http://localhost:8000/orders_total'
 Get active orders, optionally filtered by `symbol` or `ticket`.
 
 ```sh
-curl 'http://localhost:8000/orders_get?symbol=XAUUSD.r'
+curl 'http://localhost:8001/orders_get?symbol=XAUUSD.r'
 ```
 
 ```json
@@ -450,7 +482,7 @@ curl 'http://localhost:8000/orders_get?symbol=XAUUSD.r'
 Calculate the margin required for a trade. Provide `type` (0=BUY, 1=SELL), `symbol`, `volume`, and `price`.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_calc_margin' \
+curl -X POST 'http://localhost:8001/order_calc_margin' \
   -H 'Content-Type: application/json' \
   -d '{"symbol": "XAUUSD.r", "volume": 0.01, "type": 0, "price": 4500.0}'
 ```
@@ -464,7 +496,7 @@ curl -X POST 'http://localhost:8000/order_calc_margin' \
 Calculate expected profit. Use `price` for the open price and `tp` for the target close price.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_calc_profit' \
+curl -X POST 'http://localhost:8001/order_calc_profit' \
   -H 'Content-Type: application/json' \
   -d '{"symbol": "XAUUSD.r", "volume": 0.01, "type": 0, "price": 4500.0, "tp": 4510.0}'
 ```
@@ -478,7 +510,7 @@ curl -X POST 'http://localhost:8000/order_calc_profit' \
 Check if there are sufficient funds for a trade without sending it.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_check' \
+curl -X POST 'http://localhost:8001/order_check' \
   -H 'Content-Type: application/json' \
   -d '{
     "symbol": "XAUUSD.r",
@@ -511,7 +543,7 @@ curl -X POST 'http://localhost:8000/order_check' \
 Place a market buy or sell order. `type`: 0=BUY, 1=SELL. `type_filling`: 0=FOK, 1=IOC, 2=RETURN.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_send' \
+curl -X POST 'http://localhost:8001/order_send' \
   -H 'Content-Type: application/json' \
   -d '{
     "symbol": "XAUUSD.r",
@@ -551,7 +583,7 @@ curl -X POST 'http://localhost:8000/order_send' \
 Provide `position` (ticket), `symbol`, `sl`, and `tp`.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_send' \
+curl -X POST 'http://localhost:8001/order_send' \
   -H 'Content-Type: application/json' \
   -d '{
     "symbol": "XAUUSD.r",
@@ -584,7 +616,7 @@ curl -X POST 'http://localhost:8000/order_send' \
 Provide `position` (ticket), `symbol`, and `volume`. Leave `sl`/`tp` at 0.
 
 ```sh
-curl -X POST 'http://localhost:8000/order_send' \
+curl -X POST 'http://localhost:8001/order_send' \
   -H 'Content-Type: application/json' \
   -d '{
     "symbol": "XAUUSD.r",
@@ -623,7 +655,7 @@ curl -X POST 'http://localhost:8000/order_send' \
 Get the number of open positions.
 
 ```sh
-curl 'http://localhost:8000/positions_total'
+curl 'http://localhost:8001/positions_total'
 ```
 
 ```json
@@ -635,7 +667,7 @@ curl 'http://localhost:8000/positions_total'
 Get open positions, optionally filtered by `symbol` or `ticket`.
 
 ```sh
-curl 'http://localhost:8000/positions_get?symbol=XAUUSD.r'
+curl 'http://localhost:8001/positions_get?symbol=XAUUSD.r'
 ```
 
 ```json
@@ -676,7 +708,7 @@ curl 'http://localhost:8000/positions_get?symbol=XAUUSD.r'
 Get the count of historical orders in a date range.
 
 ```sh
-curl 'http://localhost:8000/history_orders_total?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
+curl 'http://localhost:8001/history_orders_total?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
 ```
 
 ```json
@@ -689,10 +721,10 @@ Get historical orders. Filter by `group` pattern, or look up a single order by `
 
 ```sh
 # By date range
-curl 'http://localhost:8000/history_orders_get?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
+curl 'http://localhost:8001/history_orders_get?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
 
 # By ticket (date params still required but ignored when ticket is set)
-curl 'http://localhost:8000/history_orders_get?date_from=2025-01-01T00:00:00&date_to=2026-01-01T00:00:00&ticket=242847567'
+curl 'http://localhost:8001/history_orders_get?date_from=2025-01-01T00:00:00&date_to=2026-01-01T00:00:00&ticket=242847567'
 ```
 
 ```json
@@ -725,7 +757,7 @@ curl 'http://localhost:8000/history_orders_get?date_from=2025-01-01T00:00:00&dat
 Get the count of historical deals in a date range.
 
 ```sh
-curl 'http://localhost:8000/history_deals_total?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
+curl 'http://localhost:8001/history_deals_total?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
 ```
 
 ```json
@@ -738,10 +770,10 @@ Get historical deals. Filter by `group` pattern, or look up by `ticket` (deal ti
 
 ```sh
 # By date range
-curl 'http://localhost:8000/history_deals_get?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
+curl 'http://localhost:8001/history_deals_get?date_from=2025-05-01T00:00:00&date_to=2025-05-31T23:59:59'
 
 # By position ID — useful for per-trade PnL lookup
-curl 'http://localhost:8000/history_deals_get?date_from=2025-01-01T00:00:00&date_to=2026-01-01T00:00:00&position=242847567'
+curl 'http://localhost:8001/history_deals_get?date_from=2025-01-01T00:00:00&date_to=2026-01-01T00:00:00&position=242847567'
 ```
 
 ```json
