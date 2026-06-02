@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 import MetaTrader5 as mt5
 
+from src.config import MT5_TERMINAL_PATH
 from src.models import LoginRequest
 
 router = APIRouter(tags=["connection"])
@@ -12,7 +13,8 @@ router = APIRouter(tags=["connection"])
     description="Establish a connection with the MetaTrader 5 terminal",
 )
 async def initialize():
-    if not mt5.initialize():
+    kwargs = {"path": MT5_TERMINAL_PATH} if MT5_TERMINAL_PATH else {}
+    if not mt5.initialize(**kwargs):
         return {"status": "failed", "error": mt5.last_error()}
     return {"status": "success"}
 
